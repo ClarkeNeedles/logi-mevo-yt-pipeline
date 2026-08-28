@@ -3,6 +3,7 @@
 import json
 import re
 import subprocess
+from datetime import date, datetime
 from pathlib import Path
 
 from models import Recording
@@ -41,20 +42,19 @@ def scan_recordings(
 		if number in seen_numbers:
 			raise ScannerError(f"Duplicate recording number {number}: {path.name}")
 		seen_numbers.add(number)
-		duration_seconds = probe_duration(path, ffprobe_path=ffprobe_path)
-		recordings.append(Recording(path, number, duration_seconds))
+		duration_seconds, recorded_date = probe_metadata(path, ffprobe_path=ffprobe_path)
+		recordings.append(Recording(path, number, duration_seconds, recorded_date))
 
 	return sorted(recordings, key=lambda recording: recording.number)
 
-
-def probe_duration(path: Path | str, *, ffprobe_path: str = "ffprobe") -> float:
-	"""Read a video's duration in seconds using ffprobe."""
+def probe_metadata(path: Path | str, *, ffprobe_path: str = "ffprobe") -> tuple[float, date]:
+	"""Read a video's duration and recording date from FFmpeg metadata."""
 	command = [
 		ffprobe_path,
 		"-v",
 		"error",
 		"-show_entries",
-		"format=duration",
+		"format=duration:format_tags=creation_time,com.apple.quicktime.creationdate",
 		"-of",
 		"json",
 		str(path),
@@ -66,10 +66,21 @@ def probe_duration(path: Path | str, *, ffprobe_path: str = "ffprobe") -> float:
 			capture_output=True,
 			text=True,
 		)
-		duration = float(json.loads(result.stdout)["format"]["duration"])
+		metadata = json.loads(result.stdout)["format"]
+		duration = float(metadata["duration"])
+		tags = metadata.get("tags", {})
+		creation_time = tags.get("creation_time") or tags.get("com.apple.quicktime.creationdate")
+		if not creation_time:
+			raise ValueError("recording date metadata is missing")
+		recorded_date = _parse_recorded_date(creation_time)
 	except Exception as error:
 		raise ScannerError(f"Could not read duration for {path}") from error
 
 	if duration < 0:
 		raise ScannerError(f"Invalid negative duration for {path}")
-	return duration
+	return duration, recorded_date
+
+
+def _parse_recorded_date(value: str) -> date:
+	"""Parse an FFmpeg ISO 8601 creation timestamp into a calendar date."""
+	return datetime.fromisoformat(value.replace("Z", "+00:00")).date()

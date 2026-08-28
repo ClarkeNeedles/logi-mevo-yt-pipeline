@@ -32,8 +32,11 @@ def detect_game_blocks(
 	for recording in recordings:
 		current_recordings.append(recording)
 		if recording.duration_seconds < short_threshold_seconds:
+			recorded_dates = {item.recorded_date for item in current_recordings}
+			if len(recorded_dates) != 1:
+				raise ValueError("All recordings in a game block must have the same date")
 			complete_blocks.append(
-				GameBlock(tuple(current_recordings), next_game_number)
+				GameBlock(tuple(current_recordings), next_game_number, current_recordings[0].recorded_date)
 			)
 			next_game_number += 1
 			current_recordings = []

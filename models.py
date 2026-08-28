@@ -1,6 +1,7 @@
 """Shared data models for recordings, game blocks, and uploads."""
 
 from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 
 
@@ -11,6 +12,7 @@ class Recording:
 	path: Path
 	number: int
 	duration_seconds: float
+	recorded_date: date
 
 	@property
 	def filename(self) -> str:
@@ -29,6 +31,7 @@ class GameBlock:
 
 	recordings: tuple[Recording, ...]
 	game_number: int
+	game_date: date
 
 
 @dataclass(frozen=True)
