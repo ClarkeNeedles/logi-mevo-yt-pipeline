@@ -118,7 +118,7 @@ def run_pipeline(arguments: argparse.Namespace) -> int:
 			continue
 
 		if arguments.confirm_before_publish and block.game_number == blocks[0].game_number:
-			answer = input("Publish and archive these game(s)? [y/N]: ").strip().lower()
+			answer = input("Publish and archive these game(s)? [Y/N]: ").strip().lower()
 			if answer not in {"y", "yes"}:
 				print("Publishing cancelled.")
 				return 0
