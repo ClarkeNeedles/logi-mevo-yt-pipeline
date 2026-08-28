@@ -66,11 +66,24 @@ The scanning, game-block detection, concatenation, team-name prompting, YouTube 
 
 - Windows 10 or 11
 - Python 3.11 or newer
-- FFmpeg available on `PATH`
+- FFmpeg and FFprobe installed, with their directory configured by `FFMPEG_BIN_DIR`
 - A Google Cloud project with the YouTube Data API enabled
 - OAuth credentials for the YouTube channel
 
 ## Local setup
+
+Install FFmpeg, which provides both `ffmpeg.exe` and `ffprobe.exe`, from PowerShell:
+
+```powershell
+winget install --id Gyan.FFmpeg.Shared
+```
+
+Open a new PowerShell window after installation and verify the executables:
+
+```powershell
+ffmpeg -version
+ffprobe -version
+```
 
 Create the project virtual environment once from PowerShell:
 
@@ -80,13 +93,20 @@ python -m venv .venv
 python -m pip install -r requirements.txt
 ```
 
-Leave the environment with:
+Copy the environment template and update `FFMPEG_BIN_DIR` in your local `.env` file. Set it to the directory containing both `ffmpeg.exe` and `ffprobe.exe`, not to either executable itself:
 
 ```powershell
-deactivate
+Copy-Item .env.example .env
+Get-Command ffmpeg | Select-Object -ExpandProperty Source
 ```
 
-The YouTube API requires a one-time browser authorization. The refresh token and client secret will be kept outside the repository and excluded by `.gitignore`.
+For example, if the command reports `C:\ffmpeg\bin\ffmpeg.exe`, set:
+
+```text
+FFMPEG_BIN_DIR=C:\ffmpeg\bin
+```
+
+If winget installs FFmpeg in a different directory, replace the example value with that actual directory path in `.env`.
 
 ## OAuth and YouTube setup
 
@@ -140,6 +160,7 @@ Copy-Item .env.example .env
 The relevant settings are:
 
 ```text
+FFMPEG_BIN_DIR=C:\ffmpeg\bin
 YOUTUBE_CATEGORY_ID=17
 YOUTUBE_PRIVACY_STATUS=public
 YOUTUBE_CLIENT_SECRETS_FILE=credentials/client_secret.json
@@ -174,6 +195,8 @@ python main.py --dry-run
 ```
 
 Dry-run mode scans the recordings, detects game blocks, displays the planned titles and output files, and does not concatenate, upload, or move files.
+
+The YouTube API requires a one-time browser authorization. The refresh token and client secret will be kept outside the repository and excluded by `.gitignore`.
 
 ### Command-line flags
 

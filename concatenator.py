@@ -5,6 +5,7 @@ import tempfile
 from collections.abc import Iterable
 from pathlib import Path
 
+from config import ffmpeg_executable
 from models import Recording
 
 
@@ -16,7 +17,7 @@ def concatenate_recordings(
 	recordings: Iterable[Recording],
 	output_path: Path | str,
 	*,
-	ffmpeg_path: str = "ffmpeg",
+	ffmpeg_path: str | None = None,
 ) -> Path:
 	"""Join recordings in order and return the generated video path.
 
@@ -26,6 +27,7 @@ def concatenate_recordings(
 	recording_list = list(recordings)
 	if not recording_list:
 		raise ValueError("At least one recording is required")
+	ffmpeg_path = ffmpeg_path or ffmpeg_executable("ffmpeg")
 
 	output = Path(output_path)
 	input_paths = [recording.path for recording in recording_list]

@@ -65,14 +65,8 @@ def prompt_team_names() -> tuple[str, str]:
 def run_pipeline(arguments: argparse.Namespace) -> int:
 	"""Discover games and either preview or concatenate them."""
 	try:
-		recordings = scan_recordings(
-			arguments.source_dir,
-			ffprobe_path=arguments.ffprobe_path,
-		)
-		blocks = detect_game_blocks(
-			recordings,
-			short_threshold_seconds=arguments.short_threshold_minutes * 60,
-		)
+		recordings = scan_recordings(arguments.source_dir)
+		blocks = detect_game_blocks(recordings)
 	except (ScannerError, ValueError) as error:
 		print(f"Error: {error}", file=sys.stderr)
 		return 1
@@ -108,7 +102,6 @@ def run_pipeline(arguments: argparse.Namespace) -> int:
 			concatenate_recordings(
 				block.recordings,
 				output_path,
-				ffmpeg_path=arguments.ffmpeg_path,
 			)
 		except (ConcatenationError, ValueError) as error:
 			print(f"Error: {error}", file=sys.stderr)

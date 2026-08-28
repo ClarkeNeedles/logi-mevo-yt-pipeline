@@ -6,6 +6,7 @@ import subprocess
 from datetime import date, datetime
 from pathlib import Path
 
+from config import ffmpeg_executable
 from models import Recording
 
 
@@ -20,7 +21,7 @@ class ScannerError(RuntimeError):
 def scan_recordings(
 	source_dir: Path | str,
 	*,
-	ffprobe_path: str = "ffprobe",
+	ffprobe_path: str | None = None,
 	video_extensions: frozenset[str] = DEFAULT_VIDEO_EXTENSIONS,
 ) -> list[Recording]:
 	"""Find valid Mevo files and return them ordered by recording number."""
@@ -29,6 +30,7 @@ def scan_recordings(
 		raise ScannerError(f"Recording directory does not exist: {directory}")
 
 	recordings: list[Recording] = []
+	ffprobe_path = ffprobe_path or ffmpeg_executable("ffprobe")
 	seen_numbers: set[int] = set()
 	for path in directory.iterdir():
 		if not path.is_file() or path.suffix.lower() not in video_extensions:
@@ -47,8 +49,9 @@ def scan_recordings(
 
 	return sorted(recordings, key=lambda recording: recording.number)
 
-def probe_metadata(path: Path | str, *, ffprobe_path: str = "ffprobe") -> tuple[float, date]:
+def probe_metadata(path: Path | str, *, ffprobe_path: str | None = None) -> tuple[float, date]:
 	"""Read a video's duration and recording date from FFmpeg metadata."""
+	ffprobe_path = ffprobe_path or ffmpeg_executable("ffprobe")
 	command = [
 		ffprobe_path,
 		"-v",
