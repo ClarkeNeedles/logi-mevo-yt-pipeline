@@ -193,7 +193,7 @@ The tool will:
 
 1. Scan the configured Mevo directory for recordings.
 2. Find complete game blocks.
-3. Ask for the home and away team names.
+3. Ask for the Game 1 home and away team names, then ask whether to reuse them for all games. If not, ask for the remaining game matchups.
 4. Concatenate each complete game.
 5. Upload each game to YouTube.
 6. Move the successfully uploaded source recordings into `published`.

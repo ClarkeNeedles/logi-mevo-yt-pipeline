@@ -62,6 +62,31 @@ def prompt_team_names() -> tuple[str, str]:
 	return home_team, away_team
 
 
+def prompt_all_team_names(game_count: int) -> list[tuple[str, str]]:
+	"""Collect team names for every game before processing begins."""
+	if game_count <= 0:
+		return []
+
+	print("\nEnter teams for Game 1:")
+	first_matchup = prompt_team_names()
+	if game_count == 1:
+		return [first_matchup]
+
+	while True:
+		reuse_teams = input("Use the same team names for all games? [Y/N]: ").strip().lower()
+		if reuse_teams in {"y", "yes"}:
+			return [first_matchup] * game_count
+		if reuse_teams in {"n", "no", ""}:
+			break
+		print("Please answer Y or N.")
+
+	matchups = [first_matchup]
+	for game_number in range(2, game_count + 1):
+		print(f"\nEnter teams for Game {game_number}:")
+		matchups.append(prompt_team_names())
+	return matchups
+
+
 def run_pipeline(arguments: argparse.Namespace) -> int:
 	"""Discover games and either preview or concatenate them."""
 	try:
@@ -80,9 +105,9 @@ def run_pipeline(arguments: argparse.Namespace) -> int:
 		print("No complete games found. A game is complete after a short final recording.")
 		return 0
 
-	home_team, away_team = prompt_team_names()
+	matchups = prompt_all_team_names(len(blocks))
 	output_dir = Path(arguments.output_dir)
-	for block in blocks:
+	for block, (home_team, away_team) in zip(blocks, matchups):
 		output_path = output_dir / f"{block.game_date.isoformat()}-game-{block.game_number}.mp4"
 		filenames = ", ".join(recording.filename for recording in block.recordings)
 		title = build_title(home_team, away_team, block.game_date, block.game_number)
