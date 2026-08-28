@@ -2,6 +2,17 @@
 
 Turn Logi Mevo recordings from a MicroSD card into public YouTube videos for the team.
 
+## Table of contents
+
+- [Planned workflow](#planned-workflow)
+- [Proposed project steps](#proposed-project-steps)
+- [Project structure](#project-structure)
+- [Prerequisites](#prerequisites)
+- [Local setup](#local-setup)
+- [OAuth and YouTube setup](#oauth-and-youtube-setup)
+- [Important safety rules](#important-safety-rules)
+- [Open decisions before implementation](#open-decisions-before-implementation)
+
 ## Planned workflow
 
 The pipeline will run on Windows and use the card mounted as `E:`:
@@ -86,6 +97,68 @@ deactivate
 ```
 
 The YouTube API requires a one-time browser authorization. The refresh token and client secret will be kept outside the repository and excluded by `.gitignore`.
+
+## OAuth and YouTube setup
+
+The publisher uses the YouTube Data API with OAuth 2.0. These steps only need to be completed once for each computer and Google account.
+
+### Create a Google Cloud project
+
+1. Open the [Google Cloud Console](https://console.cloud.google.com/).
+2. Create a project or select an existing project.
+3. Open **APIs & Services > Library**.
+4. Search for **YouTube Data API v3** and click **Enable**.
+
+### Configure the OAuth consent screen
+
+1. Open **APIs & Services > OAuth consent screen**.
+2. Choose **External** unless this is a Google Workspace-only application.
+3. Enter an app name and the requested contact information.
+4. Add your Google account as a test user if the app is in testing mode.
+5. Use the YouTube upload scope when prompted:
+
+	```text
+	https://www.googleapis.com/auth/youtube.upload
+	```
+
+### Download the client secret
+
+1. Open **APIs & Services > Credentials**.
+2. Click **Create Credentials > OAuth client ID**.
+3. Choose **Desktop app**.
+4. Download the JSON file.
+5. Create this directory in the project root:
+
+	```text
+	credentials/
+	```
+
+6. Rename the downloaded JSON file to `client_secret.json` and place it here:
+
+	```text
+	credentials/client_secret.json
+	```
+
+### Create your local environment file
+
+Do not edit `.env.example` directly. Copy it to `.env`, then customize `.env` for your computer:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+The relevant settings are:
+
+```text
+YOUTUBE_CATEGORY_ID=17
+YOUTUBE_PRIVACY_STATUS=public
+YOUTUBE_CLIENT_SECRETS_FILE=credentials/client_secret.json
+YOUTUBE_TOKEN_FILE=credentials/token.json
+```
+
+The paths are relative to the project directory. `token.json` does not need to be created manually. On the first real upload, the script will open a browser for Google authorization and create it automatically after authorization succeeds. Later runs reuse that token.
+
+The `.env` file, client secret, and token are private and are excluded from Git by `.gitignore`. Never commit them or share them with other users.
 
 ## Important safety rules
 
