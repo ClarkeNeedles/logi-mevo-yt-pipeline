@@ -69,6 +69,22 @@ The Python modules are scaffolded with their responsibilities only. Behavior wil
 - A Google Cloud project with the YouTube Data API enabled
 - OAuth credentials for the YouTube channel
 
+## Local setup
+
+Create the project virtual environment once from PowerShell:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\activate
+python -m pip install -r requirements.txt
+```
+
+Leave the environment with:
+
+```powershell
+deactivate
+```
+
 The YouTube API requires a one-time browser authorization. The refresh token and client secret will be kept outside the repository and excluded by `.gitignore`.
 
 ## Important safety rules
