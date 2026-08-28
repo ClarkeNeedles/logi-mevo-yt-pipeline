@@ -4,22 +4,21 @@ Turn Logi Mevo recordings from a MicroSD card into public YouTube videos for the
 
 ## Table of contents
 
-- [Planned workflow](#planned-workflow)
-- [Proposed project steps](#proposed-project-steps)
+- [Workflow](#workflow)
 - [Project structure](#project-structure)
 - [Prerequisites](#prerequisites)
 - [Local setup](#local-setup)
 - [OAuth and YouTube setup](#oauth-and-youtube-setup)
+- [Running the tool](#running-the-tool)
 - [Important safety rules](#important-safety-rules)
-- [Open decisions before implementation](#open-decisions-before-implementation)
 
-## Planned workflow
+## Workflow
 
 The pipeline will run on Windows and use the card mounted as `E:`:
 
-1. Scan `E:\DCIM\100_MEVO` for files named `REC_0001`, `REC_0002`, and so on. Only completed video files matching the expected naming pattern will be considered.
-2. Sort the recordings by their numeric recording number, not by filename text or filesystem date.
-3. Treat recordings as game blocks. A block contains one or more recordings of about one hour and ends at the first recording shorter than one hour. For example:
+1. The pipeline scans `E:\DCIM\100_MEVO` for files named `REC_0001`, `REC_0002`, and so on. It considers only completed video files matching the expected naming pattern.
+2. The pipeline sorts the recordings by their numeric recording number, not by filename text or filesystem date.
+3. The pipeline treats recordings as game blocks. A block contains one or more recordings of about one hour and ends at the first recording shorter than one hour. For example:
 
 	```text
 	REC_0001  1 hour
@@ -30,43 +29,34 @@ The pipeline will run on Windows and use the card mounted as `E:`:
 	REC_0006  41 minutes  <- Game 2 ends here
 	```
 
-4. Do not process an incomplete block. If the final recording is still about one hour, wait until a shorter recording appears.
-5. Concatenate each complete block in order, without re-encoding when the input files are compatible.
-6. Create an output filename containing the date and game number, for example `2026-08-28-game-1.mp4` and `2026-08-28-game-2.mp4`.
-7. Create a YouTube title containing:
+4. The pipeline does not process an incomplete block. If the final recording is still about one hour, it waits until a shorter recording appears.
+5. The pipeline concatenates each complete block in order, without re-encoding when the input files are compatible.
+6. The pipeline creates an output filename containing the date and game number, for example `2026-08-28-game-1.mp4` and `2026-08-28-game-2.mp4`.
+7. The pipeline creates a YouTube title containing:
 	- the two team names;
 	- the game date;
 	- `Game 1`, `Game 2`, etc.
-8. Upload the finished video to the configured YouTube channel with visibility set to `public`. YouTube will select a frame from the video automatically because no custom thumbnail is supplied.
-9. Move every source recording used successfully for the upload into `E:\DCIM\100_MEVO\published`. This keeps old `REC_####` files out of the next run, so a new card recording can start again at `REC_0001`.
+8. The pipeline uploads the finished video to the configured YouTube channel with visibility set to `public`. YouTube selects a frame from the video automatically because no custom thumbnail is supplied.
+9. The pipeline moves every source recording used successfully for the upload into `E:\DCIM\100_MEVO\published`. This keeps old `REC_####` files out of the next run, so a new card recording can start again at `REC_0001`.
 
 Source recordings must be moved only after concatenation and YouTube upload succeed. If a step fails, leave the source files in place so the run can be retried.
-
-## Proposed project steps
-
-We will build this incrementally:
-
-1. **Configuration:** add settings for the card path, output path, short-file threshold, and game numbering; prompt for team names when processing.
-2. **Discovery:** scan and validate `REC_####` files, sort them numerically, and print a dry-run summary.
-3. **Block detection:** identify complete game blocks by their short final recording and stop safely on incomplete input.
-4. **Concatenation:** use FFmpeg to join each block and write date/game output files.
-5. **YouTube authentication:** configure the YouTube Data API with OAuth 2.0 and store credentials locally, never in source control.
-6. **Upload:** publish the video, title, description, and metadata; support a dry-run mode before public uploads.
-7. **Archiving:** move only successfully processed source recordings into `published` and write a run log.
-8. **Recovery and tests:** test repeated runs, missing files, duplicate numbering, failed uploads, and a card containing one or two games.
 
 ## Project structure
 
 ```text
-main.py                 # Coordinates the pipeline
-config.py               # Settings and environment variables
-models.py               # Shared data models
-scanner.py              # Finds and validates REC_#### files
-game_blocks.py          # Detects complete games
+main.py                 # Coordinates scanning, processing, publishing, and archiving
+config.py               # Application configuration module
+models.py               # Shared recording, game-block, and upload models
+scanner.py              # Finds recordings and reads their metadata
+game_blocks.py          # Detects complete game blocks
 concatenator.py         # Joins recordings with FFmpeg
-youtube_publisher.py    # Uploads videos and metadata
+youtube_publisher.py    # Authenticates and uploads videos to YouTube
 archiver.py             # Moves successfully published recordings
-tests/                  # Automated tests for the pipeline logic
+requirements.txt        # Python package dependencies
+.env.example            # Configuration template
+.env                    # Personal configuration, excluded from Git
+.venv/                  # Local virtual environment, excluded from Git
+credentials/            # OAuth files, excluded from Git
 output/                 # Local generated videos, excluded from Git
 ```
 
@@ -160,6 +150,54 @@ The paths are relative to the project directory. `token.json` does not need to b
 
 The `.env` file, client secret, and token are private and are excluded from Git by `.gitignore`. Never commit them or share them with other users.
 
+## Running the tool
+
+Run the tool from the project root after activating the virtual environment:
+
+```powershell
+python main.py
+```
+
+The tool will:
+
+1. Scan the configured Mevo directory for recordings.
+2. Find complete game blocks.
+3. Ask for the home and away team names.
+4. Concatenate each complete game.
+5. Upload each game to YouTube.
+6. Move the successfully uploaded source recordings into `published`.
+
+The normal run does not ask for an additional confirmation before publishing. Use the dry run first when reviewing a new recording batch:
+
+```powershell
+python main.py --dry-run
+```
+
+Dry-run mode scans the recordings, detects game blocks, displays the planned titles and output files, and does not concatenate, upload, or move files.
+
+### Command-line flags
+
+| Flag | Default | Description |
+| --- | --- | --- |
+| `--help` | N/A | Show all available options and exit. |
+| `--source-dir PATH` | `E:\DCIM\100_MEVO` or `MEVO_SOURCE_DIR` | Directory containing `REC_####` recordings. |
+| `--output-dir PATH` | `output` or `OUTPUT_DIR` | Directory for concatenated game videos. |
+| `--published-dir PATH` | `E:\DCIM\100_MEVO\published` or `PUBLISHED_DIR` | Directory where successfully uploaded source recordings are moved. |
+| `--confirm-before-publish` | Off | Ask for confirmation before the first YouTube upload. Without this flag, publishing is unattended after the team-name prompts. |
+| `--dry-run` | Off | Show the detected games and planned outputs without concatenating, uploading, or archiving. |
+
+For example, to process a different card location while keeping the default output and archive locations:
+
+```powershell
+python main.py --source-dir "F:\DCIM\100_MEVO"
+```
+
+To review all detected games before allowing any upload:
+
+```powershell
+python main.py --confirm-before-publish
+```
+
 ## Important safety rules
 
 - Confirm the MicroSD card is actually mounted at `E:` before processing.
@@ -168,9 +206,3 @@ The `.env` file, client secret, and token are private and are excluded from Git 
 - Run with `--confirm-before-publish` when you want to approve the detected games before the first upload.
 - Do not move files to `published` unless the corresponding YouTube upload completed successfully.
 - Keep the generated videos outside `E:\DCIM\100_MEVO` so they cannot be mistaken for source recordings.
-
-## Open decisions before implementation
-
-- Exact definition of "short": the initial default can be less than 55 minutes, with a configurable threshold to allow for recording-start/stop variation.
-- Team names and the preferred title/description format.
-- Whether one run should upload every complete block or stop after one game.
