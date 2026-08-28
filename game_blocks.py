@@ -5,7 +5,7 @@ from collections.abc import Iterable
 from models import GameBlock, Recording
 
 
-SHORT_THRESHOLD_SECONDS = 59 * 60
+SHORT_THRESHOLD_SECONDS = 119 * 60
 
 
 def detect_game_blocks(

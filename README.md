@@ -18,18 +18,16 @@ The pipeline will run on Windows and use the card mounted as `E:`:
 
 1. The pipeline scans `E:\DCIM\100_MEVO` for files named `REC_0001`, `REC_0002`, and so on. It considers only completed video files matching the expected naming pattern.
 2. The pipeline sorts the recordings by their numeric recording number, not by filename text or filesystem date.
-3. The pipeline treats recordings as game blocks. A block contains one or more recordings of about one hour and ends at the first recording shorter than one hour. For example:
+3. The pipeline treats recordings as game blocks. A block contains one or more recordings of about two hours and ends at the first recording shorter than 119 minutes. For example:
 
 	```text
-	REC_0001  1 hour
-	REC_0002  1 hour
+	REC_0001  2 hours
 	REC_0003  34 minutes  <- Game 1 ends here
-	REC_0004  1 hour
-	REC_0005  1 hour
+	REC_0004  2 hours
 	REC_0006  41 minutes  <- Game 2 ends here
 	```
 
-4. The pipeline does not process an incomplete block. If the final recording is still about one hour, it waits until a shorter recording appears.
+4. The pipeline does not process an incomplete block. If the final recording is still about two hours, it waits until a shorter recording appears.
 5. The pipeline concatenates each complete block in order, without re-encoding when the input files are compatible.
 6. The pipeline creates an output filename containing the date and game number, for example `2026-08-28-game-1.mp4` and `2026-08-28-game-2.mp4`.
 7. The pipeline creates a YouTube title containing:
