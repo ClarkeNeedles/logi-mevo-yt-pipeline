@@ -5,10 +5,11 @@ import os
 import sys
 from pathlib import Path
 
+from archiver import ArchiverError, archive_recordings
 from concatenator import ConcatenationError, concatenate_recordings
 from game_blocks import SHORT_THRESHOLD_SECONDS, detect_game_blocks
 from scanner import ScannerError, scan_recordings
-from youtube_publisher import build_title
+from youtube_publisher import YouTubePublisherError, build_title, publish_video
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -23,6 +24,32 @@ def build_parser() -> argparse.ArgumentParser:
 		"--output-dir",
 		default=os.getenv("OUTPUT_DIR", "output"),
 		help="Directory for concatenated game videos.",
+	)
+	parser.add_argument(
+		"--short-threshold-minutes",
+		type=float,
+		default=SHORT_THRESHOLD_SECONDS / 60,
+		help="Maximum duration considered a short final recording.",
+	)
+	parser.add_argument(
+		"--ffprobe-path",
+		default="ffprobe",
+		help="ffprobe executable or full path.",
+	)
+	parser.add_argument(
+		"--ffmpeg-path",
+		default="ffmpeg",
+		help="ffmpeg executable or full path.",
+	)
+	parser.add_argument(
+		"--published-dir",
+		default=os.getenv("PUBLISHED_DIR", r"E:\DCIM\100_MEVO\published"),
+		help="Directory where successfully uploaded source recordings are moved.",
+	)
+	parser.add_argument(
+		"--confirm-before-publish",
+		action="store_true",
+		help="Ask for confirmation before the first YouTube upload.",
 	)
 	parser.add_argument(
 		"--dry-run",
@@ -80,11 +107,19 @@ def run_pipeline(arguments: argparse.Namespace) -> int:
 	for block in blocks:
 		output_path = output_dir / f"{block.game_date.isoformat()}-game-{block.game_number}.mp4"
 		filenames = ", ".join(recording.filename for recording in block.recordings)
+		title = build_title(home_team, away_team, block.game_date, block.game_number)
 		print(f"Game {block.game_number}: {filenames}")
-		print(f"  Title: {build_title(home_team, away_team, block.game_date, block.game_number)}")
+		print(f"  Title: {title}")
 		print(f"  Output: {output_path}")
 		if arguments.dry_run:
 			continue
+
+		if arguments.confirm_before_publish and block.game_number == blocks[0].game_number:
+			answer = input("Publish and archive these game(s)? [y/N]: ").strip().lower()
+			if answer not in {"y", "yes"}:
+				print("Publishing cancelled.")
+				return 0
+
 		try:
 			concatenate_recordings(
 				block.recordings,
@@ -96,11 +131,30 @@ def run_pipeline(arguments: argparse.Namespace) -> int:
 			return 1
 
 		print(f"  Created: {output_path}")
+		try:
+			upload = publish_video(
+				output_path,
+				home_team,
+				away_team,
+				block.game_date,
+				block.game_number,
+				client_secrets_path=os.getenv(
+					"YOUTUBE_CLIENT_SECRETS_FILE", "credentials/client_secret.json"
+				),
+				token_path=os.getenv("YOUTUBE_TOKEN_FILE", "credentials/token.json"),
+			)
+			archive_recordings(block.recordings, arguments.published_dir)
+		except (YouTubePublisherError, ArchiverError, ValueError) as error:
+			print(f"Error: {error}", file=sys.stderr)
+			return 1
+
+		print(f"  Published: {upload.url}")
+		print(f"  Archived source recordings in: {arguments.published_dir}")
 
 	if arguments.dry_run:
 		print("Dry run complete. No files were concatenated or moved.")
 	else:
-		print("Concatenation complete. YouTube publishing and archiving are not implemented yet.")
+		print("Publishing and archiving complete.")
 	return 0
 
 

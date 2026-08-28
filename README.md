@@ -70,7 +70,7 @@ tests/                  # Automated tests for the pipeline logic
 output/                 # Local generated videos, excluded from Git
 ```
 
-The initial scanning, game-block detection, concatenation, and team-name prompting behavior is implemented. Remaining publishing and archiving orchestration will be added next.
+The scanning, game-block detection, concatenation, team-name prompting, YouTube publishing, and archiving flow is implemented. A normal run publishes without a confirmation prompt; use `--confirm-before-publish` when you want to review the first upload.
 
 ## Prerequisites
 
@@ -165,6 +165,7 @@ The `.env` file, client secret, and token are private and are excluded from Git 
 - Confirm the MicroSD card is actually mounted at `E:` before processing.
 - Never delete source recordings automatically.
 - Use a dry run to show detected blocks and planned moves before the first real run.
+- Run with `--confirm-before-publish` when you want to approve the detected games before the first upload.
 - Do not move files to `published` unless the corresponding YouTube upload completed successfully.
 - Keep the generated videos outside `E:\DCIM\100_MEVO` so they cannot be mistaken for source recordings.
 
