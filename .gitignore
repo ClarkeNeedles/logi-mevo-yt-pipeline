@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+.env
+credentials/
+token.json
+output/
+*.mp4
+*.mov
+*.jpg
+*.jpeg
+*.png
