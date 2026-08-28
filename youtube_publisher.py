@@ -1,1 +1,1 @@
-"""YouTube authentication, metadata upload, and thumbnail publishing."""
+"""YouTube authentication, metadata upload, and video publishing."""

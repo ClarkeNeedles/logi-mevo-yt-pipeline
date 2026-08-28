@@ -22,11 +22,11 @@ The pipeline will run on Windows and use the card mounted as `E:`:
 4. Do not process an incomplete block. If the final recording is still about one hour, wait until a shorter recording appears.
 5. Concatenate each complete block in order, without re-encoding when the input files are compatible.
 6. Create an output filename containing the date and game number, for example `2026-08-28-game-1.mp4` and `2026-08-28-game-2.mp4`.
-7. Create a thumbnail and YouTube title containing:
+7. Create a YouTube title containing:
 	- the two team names;
 	- the game date;
 	- `Game 1`, `Game 2`, etc.
-8. Upload the finished video and thumbnail to the configured YouTube channel with visibility set to `public`.
+8. Upload the finished video to the configured YouTube channel with visibility set to `public`. YouTube will select a frame from the video automatically because no custom thumbnail is supplied.
 9. Move every source recording used successfully for the upload into `E:\DCIM\100_MEVO\published`. This keeps old `REC_####` files out of the next run, so a new card recording can start again at `REC_0001`.
 
 Source recordings must be moved only after concatenation and YouTube upload succeed. If a step fails, leave the source files in place so the run can be retried.
@@ -39,11 +39,10 @@ We will build this incrementally:
 2. **Discovery:** scan and validate `REC_####` files, sort them numerically, and print a dry-run summary.
 3. **Block detection:** identify complete game blocks by their short final recording and stop safely on incomplete input.
 4. **Concatenation:** use FFmpeg to join each block and write date/game output files.
-5. **Thumbnail generation:** create a consistent thumbnail from a supplied image or template.
-6. **YouTube authentication:** configure the YouTube Data API with OAuth 2.0 and store credentials locally, never in source control.
-7. **Upload:** publish the video, title, description, thumbnail, and metadata; support a dry-run mode before public uploads.
-8. **Archiving:** move only successfully processed source recordings into `published` and write a run log.
-9. **Recovery and tests:** test repeated runs, missing files, duplicate numbering, failed uploads, and a card containing one or two games.
+5. **YouTube authentication:** configure the YouTube Data API with OAuth 2.0 and store credentials locally, never in source control.
+6. **Upload:** publish the video, title, description, and metadata; support a dry-run mode before public uploads.
+7. **Archiving:** move only successfully processed source recordings into `published` and write a run log.
+8. **Recovery and tests:** test repeated runs, missing files, duplicate numbering, failed uploads, and a card containing one or two games.
 
 ## Project structure
 
@@ -54,7 +53,6 @@ models.py               # Shared data models
 scanner.py              # Finds and validates REC_#### files
 game_blocks.py          # Detects complete games
 concatenator.py         # Joins recordings with FFmpeg
-thumbnail.py            # Selects or creates thumbnails
 youtube_publisher.py    # Uploads videos and metadata
 archiver.py             # Moves successfully published recordings
 tests/                  # Automated tests for the pipeline logic
@@ -70,7 +68,6 @@ The Python modules are scaffolded with their responsibilities only. Behavior wil
 - FFmpeg available on `PATH`
 - A Google Cloud project with the YouTube Data API enabled
 - OAuth credentials for the YouTube channel
-- A thumbnail image or agreed thumbnail template
 
 The YouTube API requires a one-time browser authorization. The refresh token and client secret will be kept outside the repository and excluded by `.gitignore`.
 
@@ -86,5 +83,4 @@ The YouTube API requires a one-time browser authorization. The refresh token and
 
 - Exact definition of "short": the initial default can be less than 55 minutes, with a configurable threshold to allow for recording-start/stop variation.
 - Team names and the preferred title/description format.
-- Thumbnail source: a fixed team image, a frame from the recording, or a generated template.
 - Whether one run should upload every complete block or stop after one game.
