@@ -57,7 +57,7 @@ requirements.txt        # Python package dependencies
 .env                    # Personal configuration, excluded from Git
 .venv/                  # Local virtual environment, excluded from Git
 credentials/            # OAuth files, excluded from Git
-output/                 # Local generated videos, excluded from Git
+output/                 # Optional local output directory when selected explicitly
 ```
 
 The scanning, game-block detection, concatenation, team-name prompting, YouTube publishing, and archiving flow is implemented. A normal run publishes without a confirmation prompt; use `--confirm-before-publish` when you want to review the first upload.
@@ -103,6 +103,7 @@ Get-Command ffmpeg | Select-Object -ExpandProperty Source
 For example, if the command reports `C:\ffmpeg\bin\ffmpeg.exe`, set:
 
 ```text
+OUTPUT_DIR=E:\DCIM\100_MEVO\output
 FFMPEG_BIN_DIR=C:\ffmpeg\bin
 ```
 
@@ -215,7 +216,7 @@ The YouTube API requires a one-time browser authorization. The refresh token and
 | --- | --- | --- |
 | `--help` | N/A | Show all available options and exit. |
 | `--source-dir PATH` | `E:\DCIM\100_MEVO` or `MEVO_SOURCE_DIR` | Directory containing `REC_####` recordings. |
-| `--output-dir PATH` | `output` or `OUTPUT_DIR` | Directory for concatenated game videos. |
+| `--output-dir PATH` | `E:\DCIM\100_MEVO\output` or `OUTPUT_DIR` | Directory for concatenated game videos. |
 | `--published-dir PATH` | `E:\DCIM\100_MEVO\published` or `PUBLISHED_DIR` | Directory where successfully uploaded source recordings are moved. |
 | `--confirm-before-publish` | Off | Ask for confirmation before the first YouTube upload. Without this flag, publishing is unattended after the team-name prompts. |
 | `--dry-run` | Off | Show the detected games and planned outputs without concatenating, uploading, or archiving. |
@@ -239,4 +240,4 @@ python main.py --confirm-before-publish
 - Use a dry run to show detected blocks and planned moves before the first real run.
 - Run with `--confirm-before-publish` when you want to approve the detected games before the first upload.
 - Do not move files to `published` unless the corresponding YouTube upload completed successfully.
-- Keep the generated videos outside `E:\DCIM\100_MEVO` so they cannot be mistaken for source recordings.
+- Store generated videos in `E:\DCIM\100_MEVO\output` by default so large files do not consume space on the computer. The scanner only processes files matching the `REC_####` pattern in the source directory.
