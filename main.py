@@ -25,22 +25,6 @@ def build_parser() -> argparse.ArgumentParser:
 		help="Directory for concatenated game videos.",
 	)
 	parser.add_argument(
-		"--short-threshold-minutes",
-		type=float,
-		default=SHORT_THRESHOLD_SECONDS / 60,
-		help="Maximum duration considered a short final recording.",
-	)
-	parser.add_argument(
-		"--ffprobe-path",
-		default="ffprobe",
-		help="ffprobe executable or full path.",
-	)
-	parser.add_argument(
-		"--ffmpeg-path",
-		default="ffmpeg",
-		help="ffmpeg executable or full path.",
-	)
-	parser.add_argument(
 		"--dry-run",
 		action="store_true",
 		help="Show detected games and planned outputs without concatenating files.",

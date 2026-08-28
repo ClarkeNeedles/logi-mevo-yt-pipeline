@@ -1,9 +1,14 @@
 """YouTube authentication, metadata upload, and video publishing."""
 
 from datetime import date
+import os
 from pathlib import Path
+from dotenv import load_dotenv
 
 from models import UploadResult
+
+
+load_dotenv()
 
 
 YOUTUBE_UPLOAD_SCOPE = "https://www.googleapis.com/auth/youtube.upload"
@@ -73,8 +78,8 @@ def publish_video(
 	client_secrets_path: Path | str = Path("credentials/client_secret.json"),
 	token_path: Path | str = Path("credentials/token.json"),
 	description: str = "",
-	category_id: str = "17",
-	privacy_status: str = "public",
+	category_id: str | None = None,
+	privacy_status: str | None = None,
 ) -> UploadResult:
 	"""Upload a game video publicly and return its YouTube URL.
 
@@ -83,6 +88,8 @@ def publish_video(
 	video = Path(video_path)
 	if not video.is_file():
 		raise YouTubePublisherError(f"Video file does not exist: {video}")
+	category_id = category_id or os.getenv("YOUTUBE_CATEGORY_ID", "17")
+	privacy_status = privacy_status or os.getenv("YOUTUBE_PRIVACY_STATUS", "public")
 	if privacy_status not in {"public", "private", "unlisted"}:
 		raise ValueError("privacy_status must be public, private, or unlisted")
 
