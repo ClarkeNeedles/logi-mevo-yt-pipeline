@@ -8,6 +8,7 @@ from pathlib import Path
 from concatenator import ConcatenationError, concatenate_recordings
 from game_blocks import SHORT_THRESHOLD_SECONDS, detect_game_blocks
 from scanner import ScannerError, scan_recordings
+from youtube_publisher import build_title
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -24,11 +25,46 @@ def build_parser() -> argparse.ArgumentParser:
 		help="Directory for concatenated game videos.",
 	)
 	parser.add_argument(
+		"--short-threshold-minutes",
+		type=float,
+		default=SHORT_THRESHOLD_SECONDS / 60,
+		help="Maximum duration considered a short final recording.",
+	)
+	parser.add_argument(
+		"--ffprobe-path",
+		default="ffprobe",
+		help="ffprobe executable or full path.",
+	)
+	parser.add_argument(
+		"--ffmpeg-path",
+		default="ffmpeg",
+		help="ffmpeg executable or full path.",
+	)
+	parser.add_argument(
 		"--dry-run",
 		action="store_true",
 		help="Show detected games and planned outputs without concatenating files.",
 	)
 	return parser
+
+
+def prompt_team_names() -> tuple[str, str]:
+	"""Prompt for the teams that played in the discovered games."""
+	while True:
+		home_team = input("Home team: ").strip()
+		if not home_team:
+			print("The home team cannot be blank.")
+			continue
+		break
+
+	while True:
+		away_team = input("Away team: ").strip()
+		if not away_team:
+			print("The away team cannot be blank.")
+			continue
+		break
+
+	return home_team, away_team
 
 
 def run_pipeline(arguments: argparse.Namespace) -> int:
@@ -55,11 +91,13 @@ def run_pipeline(arguments: argparse.Namespace) -> int:
 		print("No complete games found. A game is complete after a short final recording.")
 		return 0
 
+	home_team, away_team = prompt_team_names()
 	output_dir = Path(arguments.output_dir)
 	for block in blocks:
 		output_path = output_dir / f"{block.game_date.isoformat()}-game-{block.game_number}.mp4"
 		filenames = ", ".join(recording.filename for recording in block.recordings)
 		print(f"Game {block.game_number}: {filenames}")
+		print(f"  Title: {build_title(home_team, away_team, block.game_date, block.game_number)}")
 		print(f"  Output: {output_path}")
 		if arguments.dry_run:
 			continue

@@ -35,7 +35,7 @@ Source recordings must be moved only after concatenation and YouTube upload succ
 
 We will build this incrementally:
 
-1. **Configuration:** add settings for the card path, output path, short-file threshold, team names, date, and game numbering.
+1. **Configuration:** add settings for the card path, output path, short-file threshold, and game numbering; prompt for team names when processing.
 2. **Discovery:** scan and validate `REC_####` files, sort them numerically, and print a dry-run summary.
 3. **Block detection:** identify complete game blocks by their short final recording and stop safely on incomplete input.
 4. **Concatenation:** use FFmpeg to join each block and write date/game output files.
@@ -59,7 +59,7 @@ tests/                  # Automated tests for the pipeline logic
 output/                 # Local generated videos, excluded from Git
 ```
 
-The Python modules are scaffolded with their responsibilities only. Behavior will be added one module at a time, beginning with discovery and block detection.
+The initial scanning, game-block detection, concatenation, and team-name prompting behavior is implemented. Remaining publishing and archiving orchestration will be added next.
 
 ## Prerequisites
 
