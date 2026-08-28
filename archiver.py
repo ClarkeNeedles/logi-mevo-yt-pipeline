@@ -14,15 +14,20 @@ class ArchiverError(RuntimeError):
 def archive_recordings(
 	recordings: Iterable[Recording],
 	published_dir: Path | str,
+	archive_stem: str,
 ) -> list[Path]:
-	"""Move processed recordings into ``published_dir`` and return destinations.
+	"""Rename and move recordings into ``published_dir`` and return destinations.
 
 	Call this only after the corresponding concatenation and YouTube upload have
-	succeeded. All source and destination paths are checked before any move.
+	succeeded. Each destination uses ``archive_stem`` and the source sequence,
+	for example ``2026-08-28-game-1-1.mp4``. All source and destination paths
+	are checked before any move.
 	"""
 	recording_list = list(recordings)
 	if not recording_list:
 		return []
+	if not archive_stem.strip():
+		raise ValueError("archive_stem cannot be blank")
 
 	destination_dir = Path(published_dir)
 	sources = [recording.path for recording in recording_list]
@@ -36,7 +41,10 @@ def archive_recordings(
 			+ ", ".join(str(path) for path in missing_sources)
 		)
 
-	destinations = [destination_dir / path.name for path in sources]
+	destinations = [
+		destination_dir / f"{archive_stem}-{index}{path.suffix}"
+		for index, path in enumerate(sources, start=1)
+	]
 	if len({path.name.casefold() for path in destinations}) != len(destinations):
 		raise ArchiverError("Source recordings contain duplicate destination filenames")
 

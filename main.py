@@ -120,7 +120,7 @@ def run_pipeline(arguments: argparse.Namespace) -> int:
 				),
 				token_path=os.getenv("YOUTUBE_TOKEN_FILE", "credentials/token.json"),
 			)
-			archive_recordings(block.recordings, arguments.published_dir)
+			archive_recordings(block.recordings, arguments.published_dir, output_path.stem)
 		except (YouTubePublisherError, ArchiverError, ValueError) as error:
 			print(f"Error: {error}", file=sys.stderr)
 			return 1

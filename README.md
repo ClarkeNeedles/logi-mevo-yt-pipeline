@@ -37,7 +37,7 @@ The pipeline will run on Windows and use the card mounted as `E:`:
 	- the game date;
 	- `Game 1`, `Game 2`, etc.
 8. The pipeline uploads the finished video to the configured YouTube channel with visibility set to `public`. YouTube selects a frame from the video automatically because no custom thumbnail is supplied.
-9. The pipeline moves every source recording used successfully for the upload into `E:\DCIM\100_MEVO\published`. This keeps old `REC_####` files out of the next run, so a new card recording can start again at `REC_0001`.
+9. The pipeline renames and moves every source recording used successfully for the upload into `E:\DCIM\100_MEVO\published`. For example, the recordings for `2026-08-28-game-1.mp4` become `2026-08-28-game-1-1.mp4`, `2026-08-28-game-1-2.mp4`, and so on. This keeps old recordings out of the next run, so a new card recording can start again at `REC_0001`.
 
 Source recordings must be moved only after concatenation and YouTube upload succeed. If a step fails, leave the source files in place so the run can be retried.
 
