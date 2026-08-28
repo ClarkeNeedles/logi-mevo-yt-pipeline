@@ -171,6 +171,17 @@ The paths are relative to the project directory. `token.json` does not need to b
 
 The `.env` file, client secret, and token are private and are excluded from Git by `.gitignore`. Never commit them or share them with other users.
 
+### Add yourself as a test user
+
+After the Google Cloud project, OAuth consent screen, client secret, and `.env` file are set up:
+
+1. Return to **APIs & Services > OAuth consent screen** in Google Cloud Console.
+2. Find the **Test users** section.
+3. Click **Add users** and enter the Google account that owns or manages the YouTube channel.
+4. Save the change.
+
+The account used during the first browser authorization must be listed as a test user while the app remains in testing mode. Otherwise Google returns `Error 403: access_denied`.
+
 ## Running the tool
 
 Run the tool from the project root after activating the virtual environment:
