@@ -1,6 +1,7 @@
 """Detection of complete game blocks from ordered recordings."""
 
 from collections.abc import Iterable
+from datetime import date
 
 from models import GameBlock, Recording
 
@@ -27,9 +28,16 @@ def detect_game_blocks(
 
 	complete_blocks: list[GameBlock] = []
 	current_recordings: list[Recording] = []
+	current_date: date | None = None
 	next_game_number = starting_game_number
 
 	for recording in recordings:
+		if current_date is None:
+			current_date = recording.recorded_date
+		elif recording.recorded_date != current_date:
+			current_date = recording.recorded_date
+			next_game_number = 1
+
 		current_recordings.append(recording)
 		if recording.duration_seconds < short_threshold_seconds:
 			recorded_dates = {item.recorded_date for item in current_recordings}

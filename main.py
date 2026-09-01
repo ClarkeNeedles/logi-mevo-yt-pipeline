@@ -7,7 +7,7 @@ from pathlib import Path
 
 from archiver import ArchiverError, archive_recordings
 from concatenator import ConcatenationError, concatenate_recordings
-from game_blocks import SHORT_THRESHOLD_SECONDS, detect_game_blocks
+from game_blocks import detect_game_blocks
 from scanner import ScannerError, scan_recordings
 from youtube_publisher import YouTubePublisherError, build_title, publish_video
 
@@ -117,7 +117,7 @@ def run_pipeline(arguments: argparse.Namespace) -> int:
 		if arguments.dry_run:
 			continue
 
-		if arguments.confirm_before_publish and block.game_number == blocks[0].game_number:
+		if arguments.confirm_before_publish and block is blocks[0]:
 			answer = input("Publish and archive these game(s)? [Y/N]: ").strip().lower()
 			if answer not in {"y", "yes"}:
 				print("Publishing cancelled.")
