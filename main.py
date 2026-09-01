@@ -2,6 +2,7 @@
 
 import argparse
 import os
+import shutil
 import sys
 from pathlib import Path
 
@@ -111,9 +112,14 @@ def run_pipeline(arguments: argparse.Namespace) -> int:
 		output_path = output_dir / f"{block.game_date.isoformat()}-game-{block.game_number}.mp4"
 		filenames = ", ".join(recording.filename for recording in block.recordings)
 		title = build_title(home_team, away_team, block.game_date, block.game_number)
+		is_single_recording = len(block.recordings) == 1
+
 		print(f"Game {block.game_number}: {filenames}")
 		print(f"  Title: {title}")
-		print(f"  Output: {output_path}")
+		if is_single_recording:
+			print(f"  Output: {output_path} (single recording, skipping concatenation)")
+		else:
+			print(f"  Output: {output_path}")
 		if arguments.dry_run:
 			continue
 
@@ -123,16 +129,32 @@ def run_pipeline(arguments: argparse.Namespace) -> int:
 				print("Publishing cancelled.")
 				return 0
 
-		try:
-			concatenate_recordings(
-				block.recordings,
-				output_path,
-			)
-		except (ConcatenationError, ValueError) as error:
-			print(f"Error: {error}", file=sys.stderr)
-			return 1
+		if is_single_recording:
+			output_path.parent.mkdir(parents=True, exist_ok=True)
+			if block.recordings[0].path.resolve() == output_path.resolve():
+				print(
+					f"Error: Output path must not replace source recording: {output_path}",
+					file=sys.stderr,
+				)
+				return 1
+			try:
+				shutil.copy2(block.recordings[0].path, output_path)
+			except OSError as error:
+				print(f"Error: Could not copy recording to output: {error}", file=sys.stderr)
+				return 1
+			print(f"  Copied: {output_path}")
+		else:
+			try:
+				concatenate_recordings(
+					block.recordings,
+					output_path,
+				)
+			except (ConcatenationError, ValueError) as error:
+				print(f"Error: {error}", file=sys.stderr)
+				return 1
 
-		print(f"  Created: {output_path}")
+			print(f"  Created: {output_path}")
+
 		try:
 			upload = publish_video(
 				output_path,
