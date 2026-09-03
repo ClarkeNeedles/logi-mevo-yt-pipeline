@@ -4,6 +4,7 @@ import argparse
 import os
 import shutil
 import sys
+from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
 
 from archiver import ArchiverError, archive_recordings
@@ -88,6 +89,26 @@ def prompt_all_team_names(game_count: int) -> list[tuple[str, str]]:
 	return matchups
 
 
+def prepare_video(block, output_path: Path) -> Path:
+	"""Create one game's local output video."""
+	is_single_recording = len(block.recordings) == 1
+	if is_single_recording:
+		output_path.parent.mkdir(parents=True, exist_ok=True)
+		if block.recordings[0].path.resolve() == output_path.resolve():
+			raise ConcatenationError(
+				f"Output path must not replace source recording: {output_path}"
+			)
+		try:
+			shutil.copy2(block.recordings[0].path, output_path)
+		except OSError as error:
+			raise ConcatenationError(
+				f"Could not copy recording to output: {error}"
+			) from error
+		return output_path
+
+	return concatenate_recordings(block.recordings, output_path)
+
+
 def run_pipeline(arguments: argparse.Namespace) -> int:
 	"""Discover games and either preview or concatenate them."""
 	try:
@@ -108,8 +129,11 @@ def run_pipeline(arguments: argparse.Namespace) -> int:
 
 	matchups = prompt_all_team_names(len(blocks))
 	output_dir = Path(arguments.output_dir)
-	for block, (home_team, away_team) in zip(blocks, matchups):
-		output_path = output_dir / f"{block.game_date.isoformat()}-game-{block.game_number}.mp4"
+	output_paths = [
+		output_dir / f"{block.game_date.isoformat()}-game-{block.game_number}.mp4"
+		for block in blocks
+	]
+	for block, (home_team, away_team), output_path in zip(blocks, matchups, output_paths):
 		filenames = ", ".join(recording.filename for recording in block.recordings)
 		title = build_title(home_team, away_team, block.game_date, block.game_number)
 		is_single_recording = len(block.recordings) == 1
@@ -120,65 +144,62 @@ def run_pipeline(arguments: argparse.Namespace) -> int:
 			print(f"  Output: {output_path} (single recording, skipping concatenation)")
 		else:
 			print(f"  Output: {output_path}")
-		if arguments.dry_run:
-			continue
 
-		if arguments.confirm_before_publish and block is blocks[0]:
-			answer = input("Publish and archive these game(s)? [Y/N]: ").strip().lower()
-			if answer not in {"y", "yes"}:
-				print("Publishing cancelled.")
-				return 0
+	if arguments.dry_run:
+		print("Dry run complete. No files were concatenated or moved.")
+		return 0
 
-		if is_single_recording:
-			output_path.parent.mkdir(parents=True, exist_ok=True)
-			if block.recordings[0].path.resolve() == output_path.resolve():
-				print(
-					f"Error: Output path must not replace source recording: {output_path}",
-					file=sys.stderr,
-				)
-				return 1
+	if arguments.confirm_before_publish:
+		answer = input("Publish and archive these game(s)? [Y/N]: ").strip().lower()
+		if answer not in {"y", "yes"}:
+			print("Publishing cancelled.")
+			return 0
+
+	preparation_future: Future[Path] | None = None
+	with ThreadPoolExecutor(max_workers=1, thread_name_prefix="mevo-prep") as executor:
+		for index, (block, (home_team, away_team), output_path) in enumerate(
+			zip(blocks, matchups, output_paths)
+		):
 			try:
-				shutil.copy2(block.recordings[0].path, output_path)
-			except OSError as error:
-				print(f"Error: Could not copy recording to output: {error}", file=sys.stderr)
-				return 1
-			print(f"  Copied: {output_path}")
-		else:
-			try:
-				concatenate_recordings(
-					block.recordings,
-					output_path,
-				)
+				if preparation_future is None:
+					prepare_video(block, output_path)
+				else:
+					preparation_future.result()
 			except (ConcatenationError, ValueError) as error:
 				print(f"Error: {error}", file=sys.stderr)
 				return 1
 
-			print(f"  Created: {output_path}")
+			print(f"  Ready: {output_path}")
+			preparation_future = None
+			if index + 1 < len(blocks):
+				next_block = blocks[index + 1]
+				next_output_path = output_paths[index + 1]
+				preparation_future = executor.submit(
+					prepare_video, next_block, next_output_path
+				)
+				print(f"  Preparing Game {next_block.game_number} while this upload runs...")
 
-		try:
-			upload = publish_video(
-				output_path,
-				home_team,
-				away_team,
-				block.game_date,
-				block.game_number,
-				client_secrets_path=os.getenv(
-					"YOUTUBE_CLIENT_SECRETS_FILE", "credentials/client_secret.json"
-				),
-				token_path=os.getenv("YOUTUBE_TOKEN_FILE", "credentials/token.json"),
-			)
-			archive_recordings(block.recordings, arguments.published_dir, output_path.stem)
-		except (YouTubePublisherError, ArchiverError, ValueError) as error:
-			print(f"Error: {error}", file=sys.stderr)
-			return 1
+			try:
+				upload = publish_video(
+					output_path,
+					home_team,
+					away_team,
+					block.game_date,
+					block.game_number,
+					client_secrets_path=os.getenv(
+						"YOUTUBE_CLIENT_SECRETS_FILE", "credentials/client_secret.json"
+					),
+					token_path=os.getenv("YOUTUBE_TOKEN_FILE", "credentials/token.json"),
+				)
+				archive_recordings(block.recordings, arguments.published_dir, output_path.stem)
+			except (YouTubePublisherError, ArchiverError, ValueError) as error:
+				print(f"Error: {error}", file=sys.stderr)
+				return 1
 
-		print(f"  Published: {upload.url}")
-		print(f"  Archived source recordings in: {arguments.published_dir}")
+			print(f"  Published: {upload.url}")
+			print(f"  Archived source recordings in: {arguments.published_dir}")
 
-	if arguments.dry_run:
-		print("Dry run complete. No files were concatenated or moved.")
-	else:
-		print("Publishing and archiving complete.")
+	print("Publishing and archiving complete.")
 	return 0
 
 

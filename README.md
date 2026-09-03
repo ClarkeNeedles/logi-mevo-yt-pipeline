@@ -37,6 +37,8 @@ The pipeline will run on Windows and use the card mounted as `E:`:
 8. The pipeline uploads the finished video to the configured YouTube channel with visibility set to `public`. YouTube selects a frame from the video automatically because no custom thumbnail is supplied.
 9. The pipeline renames and moves every source recording used successfully for the upload into `E:\DCIM\100_MEVO\published`. For example, the recordings for `2026-08-28-game-1.mp4` become `2026-08-28-game-1-1.mp4`, `2026-08-28-game-1-2.mp4`, and so on. This keeps old recordings out of the next run, so a new card recording can start again at `REC_0001`.
 
+For multi-game days, the pipeline prepares the next game's local output while the current game uploads to YouTube. Uploads and archiving still happen one game at a time and in order. If background preparation fails, the affected game is not uploaded and its source recordings remain in place.
+
 Source recordings must be moved only after YouTube upload succeeds. If a step fails, leave the source files in place so the run can be retried.
 
 ## Project structure
@@ -237,4 +239,4 @@ python main.py --confirm-before-publish
 - Use a dry run to show detected blocks and planned moves before the first real run.
 - Run with `--confirm-before-publish` when you want to approve the detected games before the first upload.
 - Do not move files to `published` unless the corresponding YouTube upload completed successfully.
-- Generated videos are saved to the local `output/` directory (e.g. fast local SSD) by default. The output folder is excluded from Git.
+- Generated videos are saved to the local `output/` directory (e.g. fast local SSD) by default. The output folder is excluded from Git.
