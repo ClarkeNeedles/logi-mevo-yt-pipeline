@@ -120,8 +120,22 @@ def publish_video(
 			_, response = request.next_chunk()
 	except HttpError as error:
 		raise YouTubePublisherError(f"YouTube upload failed: {error}") from error
+	finally:
+		if hasattr(media, "_fd") and media._fd is not None:
+			try:
+				media._fd.close()
+			except Exception:
+				pass
 
-	video_id = response.get("id")
+	video_id = response.get("id") if response else None
 	if not video_id:
 		raise YouTubePublisherError("YouTube upload returned no video ID")
+
+	upload_status = response.get("status", {}).get("uploadStatus")
+	if upload_status in {"rejected", "failed"}:
+		rejection_reason = response.get("status", {}).get("rejectionReason", "unknown")
+		raise YouTubePublisherError(
+			f"YouTube upload was {upload_status}: {rejection_reason}"
+		)
+
 	return UploadResult(video_id, f"https://www.youtube.com/watch?v={video_id}")

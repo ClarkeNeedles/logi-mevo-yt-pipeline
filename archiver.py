@@ -1,4 +1,4 @@
-"""Archiving of source recordings after successful publication."""
+"""Archiving and deletion of source recordings after output verification."""
 
 import shutil
 from collections.abc import Iterable
@@ -8,7 +8,7 @@ from models import Recording
 
 
 class ArchiverError(RuntimeError):
-	"""Raised when source recordings cannot be archived safely."""
+	"""Raised when source recordings cannot be archived or deleted safely."""
 
 
 def archive_recordings(
@@ -18,10 +18,10 @@ def archive_recordings(
 ) -> list[Path]:
 	"""Rename and move recordings into ``published_dir`` and return destinations.
 
-	Call this only after the corresponding concatenation and YouTube upload have
-	succeeded. Each destination uses ``archive_stem`` and the source sequence,
-	for example ``2026-08-28-game-1-1.mp4``. All source and destination paths
-	are checked before any move.
+	Call this only after the corresponding concatenation or single recording copy
+	has produced a verified output file. Each destination uses ``archive_stem``
+	and the source sequence, for example ``2026-08-28-game-1-1.mp4``. All source
+	and destination paths are checked before any move.
 	"""
 	recording_list = list(recordings)
 	if not recording_list:
@@ -70,3 +70,36 @@ def archive_recordings(
 		raise ArchiverError(f"Could not archive recordings: {error}") from error
 
 	return destinations
+ 
+ 
+def delete_source_recordings(recordings: Iterable[Recording]) -> list[Path]:
+	"""Permanently delete source recordings and return their paths.
+ 
+	Call this only after the corresponding concatenation or single recording copy
+	has produced a verified output file. All source paths are checked before
+	deletion.
+	"""
+	recording_list = list(recordings)
+	if not recording_list:
+		return []
+ 
+	sources = [recording.path for recording in recording_list]
+	missing_sources = [path for path in sources if not path.is_file()]
+	if missing_sources:
+		raise ArchiverError(
+			"Source recording does not exist: "
+			+ ", ".join(str(path) for path in missing_sources)
+		)
+ 
+	deleted: list[Path] = []
+	for recording in recording_list:
+		try:
+			recording.path.unlink()
+			deleted.append(recording.path)
+			print(f"  Deleted source recording: {recording.filename}")
+		except OSError as error:
+			raise ArchiverError(
+				f"Could not delete source recording {recording.path}: {error}"
+			) from error
+ 
+	return deleted

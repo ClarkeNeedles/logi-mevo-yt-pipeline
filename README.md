@@ -29,29 +29,28 @@ The pipeline will run on Windows and use the card mounted as `E:`:
 
 4. The pipeline does not process an incomplete block. If the final recording is still about two hours, it waits until a shorter recording appears.
 5. For games with multiple recordings, the pipeline concatenates them in order without re-encoding when the input files are compatible. If a game consists of a single recording (< 2 hours), concatenation is skipped and the recording is copied directly to the output video path.
-6. The pipeline creates an output filename containing the date and game number, for example `2026-08-28-game-1.mp4` and `2026-08-28-game-2.mp4`.
-7. The pipeline creates a YouTube title containing:
+6. The pipeline creates an output filename containing the date and game number, for example `2026-08-28-game-1.mp4` and `2026-08-28-game-2.mp4`, and verifies the output video is non-empty.
+7. As soon as the output video is produced and verified, the pipeline archives the source recordings into `E:\DCIM\100_MEVO\published` (or permanently deletes them if `--delete-source` is specified). For example, archived recordings for `2026-08-28-game-1.mp4` become `2026-08-28-game-1-1.mp4`, `2026-08-28-game-1-2.mp4`, and so on.
+8. The pipeline creates a YouTube title containing:
 	- the two team names;
 	- the game date;
 	- `Game 1`, `Game 2`, etc.
-8. The pipeline uploads the finished video to the configured YouTube channel with visibility set to `public`. YouTube selects a frame from the video automatically because no custom thumbnail is supplied.
-9. The pipeline renames and moves every source recording used successfully for the upload into `E:\DCIM\100_MEVO\published`. For example, the recordings for `2026-08-28-game-1.mp4` become `2026-08-28-game-1-1.mp4`, `2026-08-28-game-1-2.mp4`, and so on. This keeps old recordings out of the next run, so a new card recording can start again at `REC_0001`.
+9. The pipeline uploads the finished video to the configured YouTube channel with visibility set to `public`. YouTube selects a frame from the video automatically because no custom thumbnail is supplied.
+10. Once the YouTube upload is verifiably confirmed, the local output video in `output/` is automatically deleted to free disk space (unless `--keep-output` is specified).
 
-For multi-game days, the pipeline prepares the next game's local output while the current game uploads to YouTube. Uploads and archiving still happen one game at a time and in order. If background preparation fails, the affected game is not uploaded and its source recordings remain in place.
-
-Source recordings must be moved only after YouTube upload succeeds. If a step fails, leave the source files in place so the run can be retried.
+For multi-game days, the pipeline prepares the next game's local output while the current game uploads to YouTube. Handling of source recordings and uploads still happens one game at a time and in order. If background preparation fails, the affected game is not uploaded and its source recordings remain in place.
 
 ## Project structure
 
 ```text
-main.py                 # Coordinates scanning, processing, publishing, and archiving
+main.py                 # Coordinates scanning, processing, publishing, and archiving/deletion
 config.py               # Application configuration module
 models.py               # Shared recording, game-block, and upload models
 scanner.py              # Finds recordings and reads their metadata
 game_blocks.py          # Detects complete game blocks
 concatenator.py         # Joins recordings with FFmpeg
 youtube_publisher.py    # Authenticates and uploads videos to YouTube
-archiver.py             # Moves successfully published recordings
+archiver.py             # Archives or deletes source recordings after output verification
 requirements.txt        # Python package dependencies
 .env.example            # Configuration template
 .env                    # Personal configuration, excluded from Git
@@ -195,9 +194,10 @@ The tool will:
 1. Scan the configured Mevo directory for recordings.
 2. Find complete game blocks.
 3. Ask for the Game 1 home and away team names, then ask whether to reuse them for all games. If not, ask for the remaining game matchups.
-4. Concatenate each complete game.
-5. Upload each game to YouTube.
-6. Move the successfully uploaded source recordings into `published`.
+4. Prepare each complete game (concatenate multiple recordings or copy a single recording) and verify the output video.
+5. Archive the source recordings into `published` (or permanently delete them if `--delete-source` is passed).
+6. Upload each game to YouTube.
+7. Delete the local output file in `output/` once the YouTube upload is verifiably confirmed (unless `--keep-output` is passed).
 
 The normal run does not ask for an additional confirmation before publishing. Use the dry run first when reviewing a new recording batch:
 
@@ -205,7 +205,7 @@ The normal run does not ask for an additional confirmation before publishing. Us
 python main.py --dry-run
 ```
 
-Dry-run mode scans the recordings, detects game blocks, displays the planned titles and output files, and does not concatenate, upload, or move files.
+Dry-run mode scans the recordings, detects game blocks, displays the planned titles, output files, and source/output actions, without processing, uploading, archiving, or deleting files.
 
 The YouTube API requires a one-time browser authorization. The refresh token and client secret will be kept outside the repository and excluded by `.gitignore`.
 
@@ -216,9 +216,11 @@ The YouTube API requires a one-time browser authorization. The refresh token and
 | `--help` | N/A | Show all available options and exit. |
 | `--source-dir PATH` | `E:\DCIM\100_MEVO` or `MEVO_SOURCE_DIR` | Directory containing `REC_####` recordings. |
 | `--output-dir PATH` | `output` or `OUTPUT_DIR` | Directory for output game videos. |
-| `--published-dir PATH` | `E:\DCIM\100_MEVO\published` or `PUBLISHED_DIR` | Directory where successfully uploaded source recordings are moved. |
+| `--published-dir PATH` | `E:\DCIM\100_MEVO\published` or `PUBLISHED_DIR` | Directory where source recordings are moved when `--delete-source` is not active. |
 | `--confirm-before-publish` | Off | Ask for confirmation before the first YouTube upload. Without this flag, publishing is unattended after the team-name prompts. |
-| `--dry-run` | Off | Show the detected games and planned outputs without concatenating, uploading, or archiving. |
+| `--dry-run` | Off | Show detected games, planned outputs, and actions without modifying files. |
+| `--delete-source` / `--no-delete-source` | Off or `DELETE_SOURCE` | Delete source recordings after output video is verified instead of archiving them. |
+| `--keep-output` / `--no-keep-output` | Off or `KEEP_OUTPUT` | Keep local output video in output directory after successful YouTube upload (default auto-deletes). |
 
 For example, to process a different card location while keeping the default output and archive locations:
 
@@ -232,11 +234,16 @@ To review all detected games before allowing any upload:
 python main.py --confirm-before-publish
 ```
 
+To delete source recordings from the card upon verified preparation and keep local output videos:
+
+```powershell
+python main.py --delete-source --keep-output
+```
+
 ## Important safety rules
 
 - Confirm the MicroSD card is actually mounted at `E:` before processing.
-- Never delete source recordings automatically.
-- Use a dry run to show detected blocks and planned moves before the first real run.
-- Run with `--confirm-before-publish` when you want to approve the detected games before the first upload.
-- Do not move files to `published` unless the corresponding YouTube upload completed successfully.
-- Generated videos are saved to the local `output/` directory (e.g. fast local SSD) by default. The output folder is excluded from Git.
+- Source recordings are only archived or deleted after the generated output video has been verified to exist and be non-empty.
+- Output videos in `output/` are automatically deleted only after YouTube upload is verifiably confirmed. Use `--keep-output` if you want local copies retained.
+- Use a dry run (`--dry-run`) to show detected blocks and planned actions before the first real run.
+- Run with `--confirm-before-publish` when you want to approve detected games before the first upload.

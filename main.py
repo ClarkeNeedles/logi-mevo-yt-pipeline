@@ -7,7 +7,7 @@ import sys
 from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
 
-from archiver import ArchiverError, archive_recordings
+from archiver import ArchiverError, archive_recordings, delete_source_recordings
 from concatenator import ConcatenationError, concatenate_recordings
 from game_blocks import detect_game_blocks
 from scanner import ScannerError, scan_recordings
@@ -30,7 +30,7 @@ def build_parser() -> argparse.ArgumentParser:
 	parser.add_argument(
 		"--published-dir",
 		default=os.getenv("PUBLISHED_DIR", r"E:\DCIM\100_MEVO\published"),
-		help="Directory where successfully uploaded source recordings are moved.",
+		help="Directory where successfully processed source recordings are moved when not deleted.",
 	)
 	parser.add_argument(
 		"--confirm-before-publish",
@@ -40,7 +40,19 @@ def build_parser() -> argparse.ArgumentParser:
 	parser.add_argument(
 		"--dry-run",
 		action="store_true",
-		help="Show detected games and planned outputs without concatenating files.",
+		help="Show detected games and planned outputs without processing files.",
+	)
+	parser.add_argument(
+		"--delete-source",
+		action=argparse.BooleanOptionalAction,
+		default=os.getenv("DELETE_SOURCE", "false").strip().lower() in {"1", "true", "yes"},
+		help="Delete source recordings after output video is produced instead of archiving them.",
+	)
+	parser.add_argument(
+		"--keep-output",
+		action=argparse.BooleanOptionalAction,
+		default=os.getenv("KEEP_OUTPUT", "false").strip().lower() in {"1", "true", "yes"},
+		help="Keep local output video in output directory after successful YouTube upload (default auto-deletes).",
 	)
 	return parser
 
@@ -89,6 +101,14 @@ def prompt_all_team_names(game_count: int) -> list[tuple[str, str]]:
 	return matchups
 
 
+def verify_output_video(output_path: Path) -> None:
+	"""Verify that the generated output video exists and is non-empty."""
+	if not output_path.is_file():
+		raise ConcatenationError(f"Output video was not created: {output_path}")
+	if output_path.stat().st_size == 0:
+		raise ConcatenationError(f"Output video is empty (0 bytes): {output_path}")
+
+
 def prepare_video(block, output_path: Path) -> Path:
 	"""Create one game's local output video."""
 	is_single_recording = len(block.recordings) == 1
@@ -104,9 +124,12 @@ def prepare_video(block, output_path: Path) -> Path:
 			raise ConcatenationError(
 				f"Could not copy recording to output: {error}"
 			) from error
+		verify_output_video(output_path)
 		return output_path
 
-	return concatenate_recordings(block.recordings, output_path)
+	result_path = concatenate_recordings(block.recordings, output_path)
+	verify_output_video(result_path)
+	return result_path
 
 
 def run_pipeline(arguments: argparse.Namespace) -> int:
@@ -140,11 +163,20 @@ def run_pipeline(arguments: argparse.Namespace) -> int:
 			print(f"Game {block.game_number}: {filenames}")
 			print(f"  Title: {title}")
 			print(f"  Output: {output_path}")
-		print("Dry run complete. No files were concatenated or moved.")
+			if arguments.delete_source:
+				print(f"  Source action: Delete {filenames} after preparation")
+			else:
+				print(f"  Source action: Archive to {arguments.published_dir} after preparation")
+			if not arguments.keep_output:
+				print(f"  Output action: Delete {output_path} after upload")
+			else:
+				print(f"  Output action: Keep {output_path} after upload")
+		print("Dry run complete. No files were processed, uploaded, or deleted.")
 		return 0
 
 	if arguments.confirm_before_publish:
-		answer = input("Publish and archive these game(s)? [Y/N]: ").strip().lower()
+		prompt_action = "delete source" if arguments.delete_source else "archive source"
+		answer = input(f"Publish ({prompt_action}) these game(s)? [Y/N]: ").strip().lower()
 		if answer not in {"y", "yes"}:
 			print("Publishing cancelled.")
 			return 0
@@ -177,6 +209,21 @@ def run_pipeline(arguments: argparse.Namespace) -> int:
 				return 1
 
 			print(f"  Preparation complete: {output_path}")
+
+			if arguments.delete_source:
+				try:
+					delete_source_recordings(block.recordings)
+				except ArchiverError as error:
+					print(f"Error: {error}", file=sys.stderr)
+					return 1
+			else:
+				try:
+					archive_recordings(block.recordings, arguments.published_dir, output_path.stem)
+					print(f"  Archived source recordings in: {arguments.published_dir}")
+				except ArchiverError as error:
+					print(f"Error: {error}", file=sys.stderr)
+					return 1
+
 			preparation_future = None
 			if index + 1 < len(blocks):
 				next_block = blocks[index + 1]
@@ -202,15 +249,22 @@ def run_pipeline(arguments: argparse.Namespace) -> int:
 					),
 					token_path=os.getenv("YOUTUBE_TOKEN_FILE", "credentials/token.json"),
 				)
-				archive_recordings(block.recordings, arguments.published_dir, output_path.stem)
-			except (YouTubePublisherError, ArchiverError, ValueError) as error:
+			except (YouTubePublisherError, ValueError) as error:
 				print(f"Error: {error}", file=sys.stderr)
 				return 1
 
 			print(f"  Upload complete: {upload.url}")
-			print(f"  Archived source recordings in: {arguments.published_dir}")
 
-	print("Publishing and archiving complete.")
+			if not arguments.keep_output:
+				try:
+					output_path.unlink()
+					print(f"  Deleted output file: {output_path}")
+				except OSError as error:
+					print(f"Warning: Could not delete output file {output_path}: {error}", file=sys.stderr)
+			else:
+				print(f"  Retained output file: {output_path}")
+
+	print("Publishing and processing complete.")
 	return 0
 
 
