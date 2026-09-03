@@ -133,19 +133,13 @@ def run_pipeline(arguments: argparse.Namespace) -> int:
 		output_dir / f"{block.game_date.isoformat()}-game-{block.game_number}.mp4"
 		for block in blocks
 	]
-	for block, (home_team, away_team), output_path in zip(blocks, matchups, output_paths):
-		filenames = ", ".join(recording.filename for recording in block.recordings)
-		title = build_title(home_team, away_team, block.game_date, block.game_number)
-		is_single_recording = len(block.recordings) == 1
-
-		print(f"Game {block.game_number}: {filenames}")
-		print(f"  Title: {title}")
-		if is_single_recording:
-			print(f"  Output: {output_path} (single recording, skipping concatenation)")
-		else:
-			print(f"  Output: {output_path}")
-
 	if arguments.dry_run:
+		for block, (home_team, away_team), output_path in zip(blocks, matchups, output_paths):
+			filenames = ", ".join(recording.filename for recording in block.recordings)
+			title = build_title(home_team, away_team, block.game_date, block.game_number)
+			print(f"Game {block.game_number}: {filenames}")
+			print(f"  Title: {title}")
+			print(f"  Output: {output_path}")
 		print("Dry run complete. No files were concatenated or moved.")
 		return 0
 
@@ -160,16 +154,29 @@ def run_pipeline(arguments: argparse.Namespace) -> int:
 		for index, (block, (home_team, away_team), output_path) in enumerate(
 			zip(blocks, matchups, output_paths)
 		):
+			filenames = ", ".join(recording.filename for recording in block.recordings)
+			title = build_title(home_team, away_team, block.game_date, block.game_number)
+			is_single_recording = len(block.recordings) == 1
+			print(f"\nGame {block.game_number}")
+			print(f"  Videos: {filenames}")
+			print(f"  Title: {title}")
+			print(f"  Output: {output_path}")
+			if is_single_recording:
+				print("  Preparing: copying the single recording")
+			else:
+				print("  Preparing: concatenating recordings")
+
 			try:
 				if preparation_future is None:
 					prepare_video(block, output_path)
 				else:
+					print("  Waiting for background preparation to finish...")
 					preparation_future.result()
 			except (ConcatenationError, ValueError) as error:
 				print(f"Error: {error}", file=sys.stderr)
 				return 1
 
-			print(f"  Ready: {output_path}")
+			print(f"  Preparation complete: {output_path}")
 			preparation_future = None
 			if index + 1 < len(blocks):
 				next_block = blocks[index + 1]
@@ -177,8 +184,12 @@ def run_pipeline(arguments: argparse.Namespace) -> int:
 				preparation_future = executor.submit(
 					prepare_video, next_block, next_output_path
 				)
-				print(f"  Preparing Game {next_block.game_number} while this upload runs...")
+				print(
+					f"  Started preparing Game {next_block.game_number} in the background "
+					"while this upload runs."
+				)
 
+			print("  Starting YouTube upload...")
 			try:
 				upload = publish_video(
 					output_path,
@@ -196,7 +207,7 @@ def run_pipeline(arguments: argparse.Namespace) -> int:
 				print(f"Error: {error}", file=sys.stderr)
 				return 1
 
-			print(f"  Published: {upload.url}")
+			print(f"  Upload complete: {upload.url}")
 			print(f"  Archived source recordings in: {arguments.published_dir}")
 
 	print("Publishing and archiving complete.")
