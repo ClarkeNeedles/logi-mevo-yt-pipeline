@@ -3,6 +3,10 @@
 from datetime import date
 import os
 from pathlib import Path
+import socket
+import ssl
+import time
+from collections.abc import Callable
 from dotenv import load_dotenv
 
 from models import UploadResult
@@ -14,6 +18,8 @@ load_dotenv()
 YOUTUBE_UPLOAD_SCOPE = "https://www.googleapis.com/auth/youtube.upload"
 YOUTUBE_API_SERVICE = "youtube"
 YOUTUBE_API_VERSION = "v3"
+MAX_UPLOAD_RETRIES = 5
+RETRY_DELAYS_SECONDS = (5, 15, 30, 60, 120)
 
 
 class YouTubePublisherError(RuntimeError):
@@ -80,6 +86,7 @@ def publish_video(
 	description: str = "",
 	category_id: str | None = None,
 	privacy_status: str | None = None,
+	progress_callback: Callable[[int], None] | None = None,
 ) -> UploadResult:
 	"""Upload a game video publicly and return its YouTube URL.
 
@@ -113,12 +120,31 @@ def publish_video(
 		"status": {"privacyStatus": privacy_status},
 	}
 	media = MediaFileUpload(str(video), mimetype="video/*", resumable=True)
+	if progress_callback is not None:
+		progress_callback(0)
 	try:
 		request = youtube.videos().insert(part="snippet,status", body=body, media_body=media)
 		response = None
+		retry_count = 0
 		while response is None:
-			_, response = request.next_chunk()
+			try:
+				status, response = request.next_chunk()
+				if status is not None and progress_callback is not None:
+					progress_callback(round(status.progress() * 100))
+				retry_count = 0
+			except Exception as error:
+				if not _is_retryable_upload_error(error) or retry_count >= MAX_UPLOAD_RETRIES:
+					raise
+				delay = RETRY_DELAYS_SECONDS[retry_count]
+				retry_count += 1
+				print(
+					f"\n  Temporary upload error; retrying in {delay} seconds "
+					f"({retry_count}/{MAX_UPLOAD_RETRIES})..."
+				)
+				time.sleep(delay)
 	except HttpError as error:
+		raise YouTubePublisherError(f"YouTube upload failed: {error}") from error
+	except Exception as error:
 		raise YouTubePublisherError(f"YouTube upload failed: {error}") from error
 	finally:
 		if hasattr(media, "_fd") and media._fd is not None:
@@ -130,7 +156,6 @@ def publish_video(
 	video_id = response.get("id") if response else None
 	if not video_id:
 		raise YouTubePublisherError("YouTube upload returned no video ID")
-
 	upload_status = response.get("status", {}).get("uploadStatus")
 	if upload_status in {"rejected", "failed"}:
 		rejection_reason = response.get("status", {}).get("rejectionReason", "unknown")
@@ -138,4 +163,17 @@ def publish_video(
 			f"YouTube upload was {upload_status}: {rejection_reason}"
 		)
 
+	if progress_callback is not None:
+		progress_callback(100)
 	return UploadResult(video_id, f"https://www.youtube.com/watch?v={video_id}")
+
+
+def _is_retryable_upload_error(error: Exception) -> bool:
+	"""Return whether an upload error is likely temporary."""
+	if isinstance(error, (ConnectionError, TimeoutError, OSError, socket.error, ssl.SSLError)):
+		return True
+	response = getattr(error, "resp", None)
+	status = getattr(response, "status", None)
+	if status is not None:
+		return status == 429 or 500 <= status < 600
+	return False

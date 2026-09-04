@@ -197,6 +197,7 @@ def run_pipeline(arguments: argparse.Namespace) -> int:
 				print("  Preparing: copying the single recording")
 			else:
 				print("  Preparing: concatenating recordings")
+			print("  Preparation progress: 0%")
 
 			try:
 				if preparation_future is None:
@@ -208,6 +209,7 @@ def run_pipeline(arguments: argparse.Namespace) -> int:
 				print(f"Error: {error}", file=sys.stderr)
 				return 1
 
+			print(f"  Preparation progress: 100%")
 			print(f"  Preparation complete: {output_path}")
 
 			if arguments.delete_source:
@@ -238,6 +240,9 @@ def run_pipeline(arguments: argparse.Namespace) -> int:
 
 			print("  Starting YouTube upload...")
 			try:
+				def report_upload_progress(percentage: int) -> None:
+					print(f"  Upload progress: {percentage}%")
+
 				upload = publish_video(
 					output_path,
 					home_team,
@@ -248,6 +253,7 @@ def run_pipeline(arguments: argparse.Namespace) -> int:
 						"YOUTUBE_CLIENT_SECRETS_FILE", "credentials/client_secret.json"
 					),
 					token_path=os.getenv("YOUTUBE_TOKEN_FILE", "credentials/token.json"),
+					progress_callback=report_upload_progress,
 				)
 			except (YouTubePublisherError, ValueError) as error:
 				print(f"Error: {error}", file=sys.stderr)

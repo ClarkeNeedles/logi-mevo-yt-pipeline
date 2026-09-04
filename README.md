@@ -38,7 +38,11 @@ The pipeline will run on Windows and use the card mounted as `E:`:
 9. The pipeline uploads the finished video to the configured YouTube channel with visibility set to `public`. YouTube selects a frame from the video automatically because no custom thumbnail is supplied.
 10. Once the YouTube upload is verifiably confirmed, the local output video in `output/` is automatically deleted to free disk space (unless `--keep-output` is specified).
 
-For multi-game days, the pipeline prepares the next game's local output while the current game uploads to YouTube. Handling of source recordings and uploads still happens one game at a time and in order. If background preparation fails, the affected game is not uploaded and its source recordings remain in place.
+For multi-game days, the pipeline prepares the next game's local output while the current game uploads to YouTube. Uploads and archiving still happen one game at a time and in order. If background preparation fails, the affected game is not uploaded and its source recordings remain in place.
+
+During uploads, the pipeline reports percentage progress and retries temporary network, SSL, timeout, and YouTube server errors up to five times with increasing delays. If all retries fail, the source recordings remain in place for a later retry.
+
+Source recordings are archived or deleted only after the output video is verified. If preparation fails, the source files remain in place so the run can be retried.
 
 ## Project structure
 
