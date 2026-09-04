@@ -35,6 +35,15 @@ def detect_game_blocks(
 		if current_date is None:
 			current_date = recording.recorded_date
 		elif recording.recorded_date != current_date:
+			if current_recordings:
+				complete_blocks.append(
+					GameBlock(
+						tuple(current_recordings),
+						next_game_number,
+						current_date,
+					)
+				)
+				current_recordings = []
 			current_date = recording.recorded_date
 			next_game_number = 1
 
