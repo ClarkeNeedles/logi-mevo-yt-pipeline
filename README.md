@@ -18,7 +18,7 @@ The pipeline will run on Windows and use the card mounted as `E:`:
 
 1. The pipeline scans `E:\DCIM\100_MEVO` for files named `REC_0001`, `REC_0002`, and so on. It considers only completed video files matching the expected naming pattern.
 2. The pipeline sorts the recordings by their numeric recording number, not by filename text or filesystem date.
-3. The pipeline treats recordings as game blocks. A block contains one or more recordings of about two hours and ends at the first recording shorter than 119 minutes or when the recording date changes. For example:
+3. The pipeline treats recordings as game blocks. A block contains one or more recordings of about two hours and ends at the first recording shorter than 119 minutes. For example:
 
 	```text
 	REC_0001  2 hours
