@@ -135,10 +135,18 @@ def prepare_video(block, output_path: Path) -> Path:
 def run_pipeline(arguments: argparse.Namespace) -> int:
 	"""Discover games and either preview or concatenate them."""
 	# Authenticate first so execution doesn't stop if refresh token is old
-	credentials = authenticate(
-		os.getenv("YOUTUBE_CLIENT_SECRETS_FILE", "credentials/client_secret.json"), 
-		os.getenv("YOUTUBE_TOKEN_FILE", "credentials/token.json")
-	)
+	if not getattr(arguments, "dry_run", False):
+		try:
+			credentials = authenticate(
+				os.getenv("YOUTUBE_CLIENT_SECRETS_FILE", "credentials/client_secret.json"),
+				os.getenv("YOUTUBE_TOKEN_FILE", "credentials/token.json")
+			)
+		except YouTubePublisherError as error:
+			print(f"Error: {error}", file=sys.stderr)
+			return 1
+	else:
+		print("Dry run enabled. Skipping YouTube authentication...", file=sys.stdout)
+		credentials = None
 	
 	try:
 		recordings = scan_recordings(arguments.source_dir)

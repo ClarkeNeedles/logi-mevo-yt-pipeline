@@ -9,12 +9,7 @@ import time
 from collections.abc import Callable
 from dotenv import load_dotenv
 from google.auth.exceptions import RefreshError
-from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaFileUpload
-from googleapiclient.errors import HttpError
 
 from models import UploadResult
 
@@ -38,6 +33,15 @@ def authenticate(
 	token_path: Path | str = Path("credentials/token.json"),
 ):
 	"""Authenticate the local user and return YouTube API credentials."""
+	try:
+		from google.auth.transport.requests import Request
+		from google.oauth2.credentials import Credentials
+		from google_auth_oauthlib.flow import InstalledAppFlow
+	except ImportError as error:
+		raise YouTubePublisherError(
+			"YouTube dependencies are not installed. Run: pip install -r requirements.txt"
+		) from error
+	
 	token = Path(token_path)
 	client_secrets = Path(client_secrets_path)
 	credentials = None
@@ -106,6 +110,15 @@ def publish_video(
 	if privacy_status not in {"public", "private", "unlisted"}:
 		raise ValueError("privacy_status must be public, private, or unlisted")
 
+	try:
+		from googleapiclient.discovery import build
+		from googleapiclient.http import MediaFileUpload
+		from googleapiclient.errors import HttpError
+	except ImportError as error:
+		raise YouTubePublisherError(
+			"YouTube dependencies are not installed. Run: pip install -r requirements.txt"
+		) from error
+	
 	youtube = build(YOUTUBE_API_SERVICE, YOUTUBE_API_VERSION, credentials=credentials)
 	body = {
 		"snippet": {
