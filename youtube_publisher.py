@@ -8,6 +8,13 @@ import ssl
 import time
 from collections.abc import Callable
 from dotenv import load_dotenv
+from google.auth.exceptions import RefreshError
+from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaFileUpload
+from googleapiclient.errors import HttpError
 
 from models import UploadResult
 
@@ -31,34 +38,34 @@ def authenticate(
 	token_path: Path | str = Path("credentials/token.json"),
 ):
 	"""Authenticate the local user and return YouTube API credentials."""
-	try:
-		from google.auth.transport.requests import Request
-		from google.oauth2.credentials import Credentials
-		from google_auth_oauthlib.flow import InstalledAppFlow
-	except ImportError as error:
-		raise YouTubePublisherError(
-			"YouTube dependencies are not installed. Run: pip install -r requirements.txt"
-		) from error
-
 	token = Path(token_path)
 	client_secrets = Path(client_secrets_path)
 	credentials = None
+
+	# Attempt to load existing credentials
 	if token.is_file():
 		credentials = Credentials.from_authorized_user_file(str(token), [YOUTUBE_UPLOAD_SCOPE])
 
-	if credentials is None or not credentials.valid:
-		if credentials is not None and credentials.expired and credentials.refresh_token:
+	# If credentials exist but are expired, try to refresh them silently
+	if credentials and credentials.expired and credentials.refresh_token:
+		try:
 			credentials.refresh(Request())
-		else:
-			if not client_secrets.is_file():
-				raise YouTubePublisherError(
-					f"OAuth client secrets file does not exist: {client_secrets}"
-				)
-			flow = InstalledAppFlow.from_client_secrets_file(
-				str(client_secrets), [YOUTUBE_UPLOAD_SCOPE]
-			)
-			credentials = flow.run_local_server(port=0)
+		except RefreshError:
+			print("Saved token is completely invalid or expired. Launching browser for new login...")
+			credentials = None  # Clear it so it falls through to a fresh login below
 
+	# If there was no token file or the silent refresh failed, prompt a fresh login
+	if not credentials or not credentials.valid:
+		if not client_secrets.is_file():
+			raise YouTubePublisherError(
+				f"OAuth client secrets file does not exist: {client_secrets}"
+			)
+		flow = InstalledAppFlow.from_client_secrets_file(
+			str(client_secrets), [YOUTUBE_UPLOAD_SCOPE]
+		)
+		credentials = flow.run_local_server(port=0)
+
+		# Save the brand new credentials (refreshed tokens don't need re-saving)
 		token.parent.mkdir(parents=True, exist_ok=True)
 		token.write_text(credentials.to_json(), encoding="utf-8")
 
@@ -81,8 +88,7 @@ def publish_video(
 	game_date: date,
 	game_number: int,
 	*,
-	client_secrets_path: Path | str = Path("credentials/client_secret.json"),
-	token_path: Path | str = Path("credentials/token.json"),
+	credentials: Credentials,
 	description: str = "",
 	category_id: str | None = None,
 	privacy_status: str | None = None,
@@ -100,16 +106,6 @@ def publish_video(
 	if privacy_status not in {"public", "private", "unlisted"}:
 		raise ValueError("privacy_status must be public, private, or unlisted")
 
-	try:
-		from googleapiclient.discovery import build
-		from googleapiclient.http import MediaFileUpload
-		from googleapiclient.errors import HttpError
-	except ImportError as error:
-		raise YouTubePublisherError(
-			"YouTube dependencies are not installed. Run: pip install -r requirements.txt"
-		) from error
-
-	credentials = authenticate(client_secrets_path, token_path)
 	youtube = build(YOUTUBE_API_SERVICE, YOUTUBE_API_VERSION, credentials=credentials)
 	body = {
 		"snippet": {
