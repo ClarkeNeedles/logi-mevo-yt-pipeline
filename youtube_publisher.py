@@ -1,5 +1,7 @@
 """YouTube authentication, metadata upload, and video publishing."""
 
+from __future__ import annotations
+
 from datetime import date
 import os
 from pathlib import Path
@@ -7,11 +9,15 @@ import socket
 import ssl
 import time
 from collections.abc import Callable
+from typing import TYPE_CHECKING
+
 from dotenv import load_dotenv
-from google.auth.exceptions import RefreshError
-from google.oauth2.credentials import Credentials
 
 from models import UploadResult
+
+
+if TYPE_CHECKING:
+	from google.oauth2.credentials import Credentials
 
 
 load_dotenv()
@@ -34,6 +40,7 @@ def authenticate(
 ):
 	"""Authenticate the local user and return YouTube API credentials."""
 	try:
+		from google.auth.exceptions import RefreshError
 		from google.auth.transport.requests import Request
 		from google.oauth2.credentials import Credentials
 		from google_auth_oauthlib.flow import InstalledAppFlow
